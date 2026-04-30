@@ -1,0 +1,11 @@
+.venv/
+.venv312/
+myenv/
+__pycache__/
+*.py[cod]
+*.log
+.DS_Store
+._*
+db.sqlite3
+proyecto/datasets/
+proyecto/models/

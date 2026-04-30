@@ -15,12 +15,14 @@ Including another URLconf
 """
 from django.contrib import admin
 from django.urls import path
-from proyecto2.views import main
-from proyecto2.views import prediccion
+from proyecto.views import main
+from proyecto.views import prediccion
+from proyecto.views import camera_predict
 
 urlpatterns = [
     path('admin/', admin.site.urls),
-
-    path('main/', main, name='main'),   # Directa
-    path('prediccion/', prediccion),    # Botones
+    path('', main, name='home'),
+    path('main/', main, name='main'),
+    path('prediccion/', prediccion, name='prediccion'),
+    path('camera_predict/', camera_predict, name='camera_predict'),
 ]

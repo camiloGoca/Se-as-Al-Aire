@@ -1,0 +1,455 @@
+﻿{% load static %}
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Reconocimiento de Gestos</title>
+    <link rel="stylesheet" href="{% static 'css/style.css' %}">
+</head>
+<body>
+    <div class="page-shell">
+        <header class="hero">
+            <div class="hero-copy">
+                <h1>Traductor ASL con Cámara</h1>
+                <p>Modelo de visión entrenado con el dataset grande <strong>{{ dataset_name }}</strong> de Kaggle.</p>
+                <div class="status-chips">
+                    <span class="status-chip {% if dataset_ready %}is-ready{% else %}is-pending{% endif %}">
+                        Dataset {% if dataset_ready %}listo{% else %}pendiente{% endif %}
+                    </span>
+                    <span class="status-chip {% if model_ready %}is-ready{% else %}is-pending{% endif %}">
+                        Modelo {% if model_ready %}listo{% else %}sin entrenar{% endif %}
+                    </span>
+                    <span class="status-chip is-info">
+                        {{ dataset_classes }} clases / {{ dataset_total_images }} imágenes
+                    </span>
+                </div>
+            </div>
+            <div class="hero-actions">
+                <form action="{% url 'prediccion' %}" method="post">
+                    {% csrf_token %}
+                    <button class="primary-button" type="submit">Entrenar o evaluar modelo</button>
+                </form>
+            </div>
+        </header>
+
+        {% if status_message %}
+            <section class="flash-message flash-success">
+                {{ status_message }}
+            </section>
+        {% endif %}
+
+        {% if error_message %}
+            <section class="flash-message flash-error">
+                {{ error_message }}
+            </section>
+        {% endif %}
+
+        <section class="camera-panel">
+            <div class="camera-box">
+                <div class="video-stage">
+                    <video id="camera" autoplay playsinline></video>
+                    <div class="camera-guide"></div>
+                </div>
+                <canvas id="captureCanvas" width="224" height="224" hidden></canvas>
+                <p class="camera-hint">
+                    Mantén la mano dentro del recuadro. Al abrir la cámara el reconocimiento empieza automáticamente y el sistema ignora predicciones con confianza menor a {{ prediction_threshold }}.
+                </p>
+                <div class="camera-actions">
+                    <button class="secondary-button" id="startCamera" type="button">Abrir cámara</button>
+                    <button class="secondary-button" id="stopCamera" type="button" disabled>Detener cámara</button>
+                    <button class="primary-button" id="captureButton" type="button" disabled>Captura manual</button>
+                    <button class="secondary-button" id="clearWordButton" type="button">Borrar palabra</button>
+                </div>
+                <div class="sensitivity-panel">
+                    <label class="sensitivity-label" for="sensitivityControl">Sensibilidad</label>
+                    <input id="sensitivityControl" type="range" min="1" max="3" step="1" value="2">
+                    <span id="sensitivityValue">Normal</span>
+                </div>
+            </div>
+            <div class="camera-output">
+                <div><strong>Letra:</strong> <span id="letterOutput">-</span></div>
+                <div><strong>Palabra:</strong> <span id="wordOutput">-</span></div>
+                <div><strong>Confianza:</strong> <span id="confidenceOutput">-</span></div>
+                <div><strong>Estado:</strong> <span id="recognitionStatus">En espera</span></div>
+            </div>
+        </section>
+
+        {% if accuracy and loss %}
+            <section class="results-summary">
+                <div class="summary-card">
+                    <span>Accuracy</span>
+                    <strong>{{ accuracy }}</strong>
+                </div>
+                <div class="summary-card">
+                    <span>Loss</span>
+                    <strong>{{ loss }}</strong>
+                </div>
+                <div class="summary-card">
+                    <span>Muestras de validación</span>
+                    <strong>{{ sample_count }}</strong>
+                </div>
+                <div class="summary-card">
+                    <span>Muestras de entrenamiento</span>
+                    <strong>{{ train_count }}</strong>
+                </div>
+            </section>
+        {% endif %}
+
+        {% if predicted_word %}
+            <section class="word-summary">
+                <div class="summary-card">
+                    <span>Secuencia predicha</span>
+                    <strong>{{ predicted_word }}</strong>
+                </div>
+                <div class="summary-card">
+                    <span>Secuencia real</span>
+                    <strong>{{ actual_word }}</strong>
+                </div>
+            </section>
+        {% endif %}
+
+        {% if results %}
+            <section class="flash-message">
+                Se muestran {{ preview_count }} ejemplos variados tomados de distintas clases del dataset para inspección visual.
+            </section>
+            <section class="predictions-grid">
+                {% for fila in results %}
+                    <article class="prediction-card">
+                        <img src="{{ fila.image }}" alt="Ejemplo de gesto {{ fila.id }}">
+                        <div class="prediction-details">
+                            <div><strong>ID:</strong> {{ fila.id }}</div>
+                            <div><strong>Real:</strong> {{ fila.actual }}</div>
+                            <div><strong>Predicho:</strong> {{ fila.predicted }}</div>
+                            <div><strong>Confianza:</strong> {{ fila.confidence }}</div>
+                        </div>
+                    </article>
+                {% endfor %}
+            </section>
+        {% else %}
+            <section class="empty-state">
+                <p>Presiona el botón para descargar el dataset grande si hace falta, entrenar el modelo y ver predicciones reales del nuevo clasificador.</p>
+            </section>
+        {% endif %}
+    </div>
+
+    <script>
+        function getCookie(name) {
+            let cookieValue = null;
+            if (document.cookie && document.cookie !== '') {
+                const cookies = document.cookie.split(';');
+                for (let i = 0; i < cookies.length; i++) {
+                    const cookie = cookies[i].trim();
+                    if (cookie.substring(0, name.length + 1) === (name + '=')) {
+                        cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
+                        break;
+                    }
+                }
+            }
+            return cookieValue;
+        }
+
+        const video = document.getElementById('camera');
+        const canvas = document.getElementById('captureCanvas');
+        const ctx = canvas.getContext('2d');
+        const startCamera = document.getElementById('startCamera');
+        const stopCamera = document.getElementById('stopCamera');
+        const captureButton = document.getElementById('captureButton');
+        const clearWordButton = document.getElementById('clearWordButton');
+        const letterOutput = document.getElementById('letterOutput');
+        const wordOutput = document.getElementById('wordOutput');
+        const confidenceOutput = document.getElementById('confidenceOutput');
+        const recognitionStatus = document.getElementById('recognitionStatus');
+        const sensitivityControl = document.getElementById('sensitivityControl');
+        const sensitivityValue = document.getElementById('sensitivityValue');
+        let currentWord = '';
+        let stream = null;
+        let recognitionInterval = null;
+        let recognitionInFlight = false;
+        let stablePredictionKey = '';
+        let stablePredictionCount = 0;
+        let lastCommittedKey = '';
+        let lastCommittedAt = 0;
+        let finishWordTimer = null;
+        let currentSegment = '';
+        const sensitivityPresets = {
+            1: {
+                label: 'Precisa',
+                minConfidence: 0.82,
+                intervalMs: 1000,
+                requiredStablePredictions: 3,
+            },
+            2: {
+                label: 'Normal',
+                minConfidence: 0.72,
+                intervalMs: 820,
+                requiredStablePredictions: 2,
+            },
+            3: {
+                label: 'Rápida',
+                minConfidence: 0.60,
+                intervalMs: 620,
+                requiredStablePredictions: 1,
+            },
+        };
+        const commitCooldownMs = 1200;
+        const finishWordDelayMs = 3200;
+        const csrftoken = getCookie('csrftoken');
+
+        function getCurrentPreset() {
+            return sensitivityPresets[sensitivityControl.value] || sensitivityPresets[2];
+        }
+
+        function updateSensitivityLabel() {
+            sensitivityValue.textContent = getCurrentPreset().label;
+        }
+
+        function updateRecognitionStatus(text) {
+            recognitionStatus.textContent = text;
+        }
+
+        async function doCapture() {
+            if (!video.srcObject || recognitionInFlight) return;
+
+            recognitionInFlight = true;
+            try {
+                const videoWidth = video.videoWidth || canvas.width;
+                const videoHeight = video.videoHeight || canvas.height;
+                const cropSize = Math.floor(Math.min(videoWidth, videoHeight) * 0.68);
+                const startX = Math.floor((videoWidth - cropSize) / 2);
+                const startY = Math.floor((videoHeight - cropSize) / 2);
+                ctx.drawImage(video, startX, startY, cropSize, cropSize, 0, 0, canvas.width, canvas.height);
+                const imageData = canvas.toDataURL('image/png');
+                const response = await fetch('{% url "camera_predict" %}', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-CSRFToken': csrftoken,
+                    },
+                    body: JSON.stringify({ image: imageData }),
+                });
+
+                const result = await response.json();
+                if (response.ok) {
+                    letterOutput.textContent = result.predicted;
+                    confidenceOutput.textContent = result.confidence;
+                    processPrediction(resolveClientPrediction(result));
+                } else {
+                    letterOutput.textContent = '-';
+                    confidenceOutput.textContent = '-';
+                    resetPredictionStability();
+                    stopAutomaticRecognition();
+                    alert(result.error || 'Error en la predicción');
+                }
+            } finally {
+                recognitionInFlight = false;
+            }
+        }
+
+        function resolveClientPrediction(result) {
+            const confidence = parseFloat(result.confidence);
+            const preset = getCurrentPreset();
+
+            if (confidence < preset.minConfidence || result.raw_label === 'nothing') {
+                return {
+                    ...result,
+                    action: 'ignore',
+                    token: '',
+                };
+            }
+
+            if (result.raw_label === 'space') {
+                return {
+                    ...result,
+                    action: 'space',
+                    token: ' ',
+                };
+            }
+
+            if (result.raw_label === 'del') {
+                return {
+                    ...result,
+                    action: 'delete',
+                    token: '',
+                };
+            }
+
+            return {
+                ...result,
+                action: 'append',
+                token: result.raw_label,
+            };
+        }
+
+        function processPrediction(result) {
+            const predictionKey = `${result.action}:${result.raw_label}:${result.token}`;
+            if (result.action === 'ignore') {
+                updateRecognitionStatus('Buscando una seña estable');
+                resetPredictionStability();
+                return;
+            }
+
+            if (predictionKey === stablePredictionKey) {
+                stablePredictionCount += 1;
+            } else {
+                stablePredictionKey = predictionKey;
+                stablePredictionCount = 1;
+            }
+
+            const preset = getCurrentPreset();
+            if (stablePredictionCount < preset.requiredStablePredictions) {
+                updateRecognitionStatus(`Confirmando seña: ${stablePredictionCount}/${preset.requiredStablePredictions}`);
+                return;
+            }
+
+            const now = Date.now();
+            if (predictionKey === lastCommittedKey && now - lastCommittedAt < commitCooldownMs) {
+                updateRecognitionStatus('Esperando una seña nueva');
+                return;
+            }
+
+            commitPrediction(result);
+            lastCommittedKey = predictionKey;
+            lastCommittedAt = now;
+            resetPredictionStability();
+        }
+
+        function commitPrediction(result) {
+            if (result.action === 'append' && result.token) {
+                currentWord += result.token;
+                currentSegment += result.token;
+                scheduleFinishWordSpeech(false);
+                updateRecognitionStatus(`Letra aceptada: ${result.token}`);
+            } else if (result.action === 'space') {
+                cancelFinishWordSpeech();
+                speakPendingWord(true);
+                if (currentWord && !currentWord.endsWith(' ')) {
+                    currentWord += ' ';
+                }
+                currentSegment = '';
+                updateRecognitionStatus('Espacio detectado y palabra pronunciada');
+            } else if (result.action === 'delete') {
+                currentWord = currentWord.slice(0, -1);
+                if (currentSegment) {
+                    currentSegment = currentSegment.slice(0, -1);
+                }
+                scheduleFinishWordSpeech(false);
+                updateRecognitionStatus('Borrando último carácter');
+            }
+
+            wordOutput.textContent = currentWord || '-';
+        }
+
+        function resetPredictionStability() {
+            stablePredictionKey = '';
+            stablePredictionCount = 0;
+        }
+
+        function startAutomaticRecognition() {
+            stopAutomaticRecognition();
+            updateRecognitionStatus('Reconocimiento automático activo');
+            const preset = getCurrentPreset();
+            recognitionInterval = setInterval(() => {
+                void doCapture();
+            }, preset.intervalMs);
+            void doCapture();
+        }
+
+        function stopAutomaticRecognition() {
+            if (recognitionInterval) {
+                clearInterval(recognitionInterval);
+                recognitionInterval = null;
+            }
+            updateRecognitionStatus('Reconocimiento detenido');
+        }
+
+        function scheduleFinishWordSpeech(forceRestart) {
+            cancelFinishWordSpeech();
+            finishWordTimer = setTimeout(() => {
+                speakPendingWord(forceRestart);
+            }, finishWordDelayMs);
+        }
+
+        function cancelFinishWordSpeech() {
+            if (finishWordTimer) {
+                clearTimeout(finishWordTimer);
+                finishWordTimer = null;
+            }
+        }
+
+        function speakPendingWord(force = false) {
+            const pendingWord = currentSegment.trim();
+            if (!pendingWord) {
+                return;
+            }
+
+            speakText(pendingWord, force);
+        }
+
+        startCamera.addEventListener('click', async () => {
+            try {
+                stream = await navigator.mediaDevices.getUserMedia({ video: true });
+                video.srcObject = stream;
+                captureButton.disabled = false;
+                stopCamera.disabled = false;
+                startCamera.disabled = true;
+                startAutomaticRecognition();
+            } catch (error) {
+                alert('No se pudo acceder a la cámara: ' + error.message);
+            }
+        });
+
+        stopCamera.addEventListener('click', () => {
+            stopAutomaticRecognition();
+            cancelFinishWordSpeech();
+            speakPendingWord(true);
+            if (stream) {
+                const tracks = stream.getTracks();
+                tracks.forEach(track => track.stop());
+                stream = null;
+                video.srcObject = null;
+            }
+            resetPredictionStability();
+            captureButton.disabled = true;
+            stopCamera.disabled = true;
+            startCamera.disabled = false;
+        });
+
+        captureButton.addEventListener('click', async () => {
+            await doCapture();
+        });
+
+        clearWordButton.addEventListener('click', () => {
+            cancelFinishWordSpeech();
+            currentWord = '';
+            currentSegment = '';
+            resetPredictionStability();
+            wordOutput.textContent = '-';
+            letterOutput.textContent = '-';
+            confidenceOutput.textContent = '-';
+            updateRecognitionStatus('Palabra limpiada');
+        });
+
+        sensitivityControl.addEventListener('input', () => {
+            updateSensitivityLabel();
+            resetPredictionStability();
+            if (stream) {
+                startAutomaticRecognition();
+            }
+        });
+
+        function speakText(text, force = false) {
+            if ('speechSynthesis' in window && text.trim()) {
+                if (force) {
+                    speechSynthesis.cancel();
+                }
+                const utterance = new SpeechSynthesisUtterance(text);
+                utterance.lang = 'es-CO';
+                speechSynthesis.speak(utterance);
+            }
+        }
+
+        updateSensitivityLabel();
+    </script>
+</body>
+</html>

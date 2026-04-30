@@ -1,51 +1,75 @@
-# django_deep_learning
+# Señas Al Aire
 
-Plantilla Django para implementación de modelos de Deep Learning
+Aplicacion web en Django para reconocer senas del alfabeto con camara usando un modelo de vision entrenado sobre el dataset `grassknoted/asl-alphabet` de Kaggle.
 
-Autor: José M. Llanos M.
-Fecha: 12-junio-2024
+## Que hace
 
+- Abre la camara y empieza a reconocer senas automaticamente.
+- Forma palabras a partir de letras detectadas.
+- Pronuncia la palabra cuando detecta `space`, cuando detienes la camara o despues de una pausa corta.
+- Permite entrenar o evaluar el modelo desde la interfaz.
 
-## Paso 1: Instalación de Django
+## Requisitos
 
-#### Linux / macOS:
+- Windows 10 o superior.
+- Python `3.10`, `3.11`, `3.12` o `3.13`.
+- Conexion a internet en la primera ejecucion para descargar el dataset y los pesos base del modelo.
 
-python3 -m pip install Django==4.1
+## Clonar el proyecto
 
-#### Windows:
+```powershell
+git clone https://github.com/camiloGoca/Se-as-Al-Aire.git
+cd Se-as-Al-Aire
+```
 
-pip3 install Django==4.1
+## Ejecutarlo en otro dispositivo
 
-## Paso 2: Verificar la versión del Django
+Abre PowerShell dentro de la carpeta del proyecto y ejecuta:
 
-python3 -m django --version
+```powershell
+py -3.12 -m venv .venv
+.\.venv\Scripts\Activate.ps1
+python -m pip install --upgrade pip
+python -m pip install -r requirements.txt
+python manage.py migrate
+python manage.py runserver
+```
 
-## Paso 3: Instalar las librerias a utilizar
+Luego abre en el navegador:
 
-!pip3 install numpy
-!pip3 install pandas
-!pip3 install tensorflow
+```text
+http://127.0.0.1:8000/
+```
 
-## Paso 4: Crear un proyecto en Django (para proyectos nuevos)
+## Primera ejecucion
 
-django-admin startproject nombre_proyecto
+En la primera ejecucion el proyecto puede tardar bastante porque:
 
-## Paso 5: Crear migraciones en Django (para proyectos nuevos)
+- descarga el dataset `grassknoted/asl-alphabet`
+- descarga los pesos base de `MobileNetV2`
+- entrena o carga el modelo
 
-python3 manage.py migrate
+Esos archivos no se suben al repositorio porque se pueden regenerar o descargar automaticamente.
 
-## Paso 6: Correr la aplicación (para proyectos nuevos)
+## Uso basico
 
-nombre_proyecto$ python3 manage.py runserver
+1. Entra a la pagina principal.
+2. Presiona `Entrenar o evaluar modelo` si necesitas generar o validar el modelo.
+3. Presiona `Abrir camara`.
+4. Mantén la mano dentro del recuadro.
+5. Usa la seña de `space` para cerrar una palabra.
+6. Usa la seña de `del` para borrar el ultimo caracter.
 
-## Paso 7: Clone la plantilla de Django
+## Estructura importante
 
-git clone https://github.com/jose-llanos/django_deep_learning.git
+- `manage.py`: entrada principal de Django.
+- `proyecto/views.py`: logica del modelo, dataset y endpoints.
+- `proyecto/templates/index.html`: interfaz principal.
+- `proyecto/static/css/style.css`: estilos.
+- `requirements.txt`: dependencias del proyecto.
 
-## Paso 8: Modifique el archivo views.py
+## Notas
 
-## Paso 9: Modifique el archivo index.html
-
-## Paso 10: Ejecute la aplicación en el navegador
-
-nombre_proyecto$ python3 manage.py runserver
+- El dataset y los modelos entrenados se ignoran en Git para mantener el repo liviano.
+- Si ya existe un modelo entrenado en `proyecto/models/`, el proyecto lo reutiliza.
+- Para mejores resultados usa buena luz y un fondo limpio.

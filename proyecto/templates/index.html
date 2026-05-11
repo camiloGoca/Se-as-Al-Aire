@@ -12,13 +12,19 @@
         <header class="hero">
             <div class="hero-copy">
                 <h1>Traductor ASL con Cámara</h1>
-                <p>Modelo de visión entrenado con el dataset grande <strong>{{ dataset_name }}</strong> de Kaggle.</p>
+                <p>Reconocimiento hibrido con landmarks de MediaPipe y modelo visual entrenado con el dataset <strong>{{ dataset_name }}</strong> de Kaggle.</p>
                 <div class="status-chips">
                     <span class="status-chip {% if dataset_ready %}is-ready{% else %}is-pending{% endif %}">
                         Dataset {% if dataset_ready %}listo{% else %}pendiente{% endif %}
                     </span>
+                    <span class="status-chip {% if image_model_ready %}is-ready{% else %}is-pending{% endif %}">
+                        CNN {% if image_model_ready %}lista{% else %}pendiente{% endif %}
+                    </span>
+                    <span class="status-chip {% if landmark_model_ready %}is-ready{% else %}is-pending{% endif %}">
+                        Landmarks {% if landmark_model_ready %}listos{% else %}pendientes{% endif %}
+                    </span>
                     <span class="status-chip {% if model_ready %}is-ready{% else %}is-pending{% endif %}">
-                        Modelo {% if model_ready %}listo{% else %}sin entrenar{% endif %}
+                        Hibrido {% if model_ready %}listo{% else %}sin entrenar{% endif %}
                     </span>
                     <span class="status-chip is-info">
                         {{ dataset_classes }} clases / {{ dataset_total_images }} imágenes
@@ -53,7 +59,7 @@
                 </div>
                 <canvas id="captureCanvas" width="224" height="224" hidden></canvas>
                 <p class="camera-hint">
-                    Mantén la mano dentro del recuadro. Al abrir la cámara el reconocimiento empieza automáticamente y el sistema ignora predicciones con confianza menor a {{ prediction_threshold }}.
+                    Manten la mano dentro del recuadro. Al abrir la camara el reconocimiento empieza automaticamente, extrae landmarks de dedos y palma, y luego combina ese resultado con la CNN.
                 </p>
                 <div class="camera-actions">
                     <button class="secondary-button" id="startCamera" type="button">Abrir cámara</button>
@@ -71,6 +77,7 @@
                 <div><strong>Letra:</strong> <span id="letterOutput">-</span></div>
                 <div><strong>Palabra:</strong> <span id="wordOutput">-</span></div>
                 <div><strong>Confianza:</strong> <span id="confidenceOutput">-</span></div>
+                <div><strong>Mano:</strong> <span id="handOutput">-</span></div>
                 <div><strong>Estado:</strong> <span id="recognitionStatus">En espera</span></div>
             </div>
         </section>
@@ -159,6 +166,7 @@
         const letterOutput = document.getElementById('letterOutput');
         const wordOutput = document.getElementById('wordOutput');
         const confidenceOutput = document.getElementById('confidenceOutput');
+        const handOutput = document.getElementById('handOutput');
         const recognitionStatus = document.getElementById('recognitionStatus');
         const sensitivityControl = document.getElementById('sensitivityControl');
         const sensitivityValue = document.getElementById('sensitivityValue');
@@ -231,12 +239,19 @@
 
                 const result = await response.json();
                 if (response.ok) {
-                    letterOutput.textContent = result.predicted;
-                    confidenceOutput.textContent = result.confidence;
+                    handOutput.textContent = result.hand_detected ? 'Detectada' : 'No detectada';
+                    if (result.hand_detected) {
+                        letterOutput.textContent = result.predicted;
+                        confidenceOutput.textContent = result.confidence;
+                    } else {
+                        letterOutput.textContent = '-';
+                        confidenceOutput.textContent = '-';
+                    }
                     processPrediction(resolveClientPrediction(result));
                 } else {
                     letterOutput.textContent = '-';
                     confidenceOutput.textContent = '-';
+                    handOutput.textContent = '-';
                     resetPredictionStability();
                     stopAutomaticRecognition();
                     alert(result.error || 'Error en la predicción');
@@ -247,6 +262,14 @@
         }
 
         function resolveClientPrediction(result) {
+            if (!result.hand_detected) {
+                return {
+                    ...result,
+                    action: 'ignore',
+                    token: '',
+                };
+            }
+
             const confidence = parseFloat(result.confidence);
             const preset = getCurrentPreset();
 
@@ -284,7 +307,11 @@
         function processPrediction(result) {
             const predictionKey = `${result.action}:${result.raw_label}:${result.token}`;
             if (result.action === 'ignore') {
-                updateRecognitionStatus('Buscando una seña estable');
+                if (!result.hand_detected) {
+                    updateRecognitionStatus('Mano no detectada en el recuadro');
+                } else {
+                    updateRecognitionStatus('Buscando una seña estable');
+                }
                 resetPredictionStability();
                 return;
             }
@@ -413,6 +440,7 @@
             captureButton.disabled = true;
             stopCamera.disabled = true;
             startCamera.disabled = false;
+            handOutput.textContent = '-';
         });
 
         captureButton.addEventListener('click', async () => {
@@ -427,6 +455,7 @@
             wordOutput.textContent = '-';
             letterOutput.textContent = '-';
             confidenceOutput.textContent = '-';
+            handOutput.textContent = '-';
             updateRecognitionStatus('Palabra limpiada');
         });
 

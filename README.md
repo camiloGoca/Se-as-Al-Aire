@@ -7,6 +7,7 @@ Aplicacion web en Django para reconocer senas del alfabeto con camara usando un 
 - Abre la camara y empieza a reconocer senas automaticamente.
 - Forma palabras a partir de letras detectadas.
 - Pronuncia la palabra cuando detecta `space`, cuando detienes la camara o despues de una pausa corta.
+- Usa MediaPipe para ubicar la mano antes de clasificar, lo que mejora el recorte en webcam real.
 - Permite entrenar o evaluar el modelo desde la interfaz.
 
 ## Requisitos
@@ -47,6 +48,7 @@ En la primera ejecucion el proyecto puede tardar bastante porque:
 
 - descarga el dataset `grassknoted/asl-alphabet`
 - descarga los pesos base de `MobileNetV2`
+- descarga el modelo `hand_landmarker.task` de MediaPipe
 - entrena o carga el modelo
 
 Esos archivos no se suben al repositorio porque se pueden regenerar o descargar automaticamente.

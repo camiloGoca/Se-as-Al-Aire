@@ -14,9 +14,15 @@
                 <h1>Traductor ASL con Cámara</h1>
                 <p>Reconocimiento hibrido con landmarks de MediaPipe y modelo visual entrenado con el dataset <strong>{{ dataset_name }}</strong> de Kaggle.</p>
                 <div class="status-chips">
-                    <span class="status-chip {% if dataset_ready %}is-ready{% else %}is-pending{% endif %}">
-                        Dataset {% if dataset_ready %}listo{% else %}pendiente{% endif %}
-                    </span>
+                    {% if training_enabled %}
+                        <span class="status-chip {% if dataset_ready %}is-ready{% else %}is-pending{% endif %}">
+                            Dataset {% if dataset_ready %}listo{% else %}pendiente{% endif %}
+                        </span>
+                    {% else %}
+                        <span class="status-chip is-info">
+                            Modo despliegue
+                        </span>
+                    {% endif %}
                     <span class="status-chip {% if image_model_ready %}is-ready{% else %}is-pending{% endif %}">
                         CNN {% if image_model_ready %}lista{% else %}pendiente{% endif %}
                     </span>
@@ -32,10 +38,14 @@
                 </div>
             </div>
             <div class="hero-actions">
-                <form action="{% url 'prediccion' %}" method="post">
-                    {% csrf_token %}
-                    <button class="primary-button" type="submit">Entrenar o evaluar modelo</button>
-                </form>
+                {% if training_enabled %}
+                    <form action="{% url 'prediccion' %}" method="post">
+                        {% csrf_token %}
+                        <button class="primary-button" type="submit">Entrenar o evaluar modelo</button>
+                    </form>
+                {% else %}
+                    <p>En Render esta version queda solo para prediccion en camara.</p>
+                {% endif %}
             </div>
         </header>
 
@@ -135,7 +145,11 @@
             </section>
         {% else %}
             <section class="empty-state">
-                <p>Presiona el botón para descargar el dataset grande si hace falta, entrenar el modelo y ver predicciones reales del nuevo clasificador.</p>
+                {% if training_enabled %}
+                    <p>Presiona el botón para descargar el dataset grande si hace falta, entrenar el modelo y ver predicciones reales del nuevo clasificador.</p>
+                {% else %}
+                    <p>El despliegue usa modelos ya entrenados. Abre la camara para empezar a reconocer señas.</p>
+                {% endif %}
             </section>
         {% endif %}
     </div>

@@ -7,6 +7,12 @@ __pycache__/
 .DS_Store
 ._*
 db.sqlite3
+staticfiles/
 proyecto/datasets/
-proyecto/models/
 proyecto/.cache/
+proyecto/models/*
+!proyecto/models/asl_alphabet_class_names.json
+!proyecto/models/asl_alphabet_mobilenet_v2.keras
+!proyecto/models/asl_landmarks_metadata.json
+!proyecto/models/asl_landmarks_mlp.keras
+!proyecto/models/hand_landmarker.task

@@ -8,6 +8,7 @@ from pathlib import Path
 import random
 from urllib.request import urlopen
 
+from django.conf import settings
 from django.http import JsonResponse
 from django.shortcuts import render
 
@@ -70,8 +71,14 @@ def prediccion(request):
     if request.method != 'POST':
         return render(request, 'index.html', context)
 
+    if not settings.TRAINING_ENABLED:
+        context['error_message'] = (
+            'En este despliegue el entrenamiento esta desactivado. '
+            'La version de Render esta preparada solo para inferencia.'
+        )
+        return render(request, 'index.html', context)
+
     try:
-        np, _ = import_ml_dependencies()
         ensure_image_dataset()
         ensure_hand_landmarker_model()
         image_model = get_or_train_image_model()
@@ -192,7 +199,7 @@ def camera_predict(request):
 
 
 def build_home_context():
-    dataset_ready = dataset_is_ready()
+    dataset_ready = dataset_is_ready() if settings.TRAINING_ENABLED else False
     image_model_ready = model_file_looks_ready(IMAGE_MODEL_PATH, IMAGE_MODEL_MIN_BYTES) and IMAGE_CLASS_NAMES_PATH.exists()
     landmark_model_ready = model_file_looks_ready(LANDMARK_MODEL_PATH, LANDMARK_MODEL_MIN_BYTES) and LANDMARK_METADATA_PATH.exists()
     stats = get_dataset_stats() if dataset_ready else None
@@ -207,6 +214,7 @@ def build_home_context():
         'train_count': stats['train_images'] if stats else 0,
         'sample_count': stats['validation_images'] if stats else 0,
         'prediction_threshold': f'{PREDICTION_THRESHOLD:.2f}',
+        'training_enabled': settings.TRAINING_ENABLED,
     }
 
 

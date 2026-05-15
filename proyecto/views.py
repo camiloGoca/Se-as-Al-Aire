@@ -11,6 +11,7 @@ from urllib.request import urlopen
 from django.conf import settings
 from django.http import JsonResponse
 from django.shortcuts import render
+from django.views.decorators.csrf import csrf_exempt
 
 DATASET_HANDLE = 'grassknoted/asl-alphabet'
 DATASET_DIR = Path(__file__).resolve().parent / 'datasets' / 'asl_alphabet'
@@ -149,7 +150,7 @@ def prediccion(request):
 
     return render(request, 'index.html', context)
 
-
+@csrf_exempt
 def camera_predict(request):
     if request.method != 'POST':
         return JsonResponse({'error': 'POST required'}, status=400)

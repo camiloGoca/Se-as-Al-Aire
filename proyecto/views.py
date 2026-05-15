@@ -370,12 +370,18 @@ def load_saved_keras_model(tf, model_path, min_bytes):
 @lru_cache(maxsize=1)
 def get_or_train_image_model():
     _, tf = import_ml_dependencies()
-    ensure_image_dataset()
     class_names = load_class_names()
 
     loaded_model = load_saved_keras_model(tf, IMAGE_MODEL_PATH, IMAGE_MODEL_MIN_BYTES)
     if loaded_model is not None:
         return loaded_model
+
+    if not settings.TRAINING_ENABLED:
+        raise RuntimeError(
+            'El modelo de imagen no esta disponible en producción y el entrenamiento esta desactivado.'
+        )
+
+    ensure_image_dataset()
 
     train_ds, val_ds = build_training_datasets(tf)
     model = build_transfer_model(tf, len(class_names))
@@ -468,11 +474,17 @@ def build_transfer_model(tf, num_classes):
 @lru_cache(maxsize=1)
 def get_or_train_landmark_model():
     _, tf = import_ml_dependencies()
-    landmark_dataset = load_landmark_dataset()
 
     loaded_model = load_saved_keras_model(tf, LANDMARK_MODEL_PATH, LANDMARK_MODEL_MIN_BYTES)
     if loaded_model is not None:
         return loaded_model
+
+    if not settings.TRAINING_ENABLED:
+        raise RuntimeError(
+            'El modelo de landmarks no esta disponible en producción y el entrenamiento esta desactivado.'
+        )
+
+    landmark_dataset = load_landmark_dataset()
 
     model = build_landmark_model(tf, len(landmark_dataset['supported_class_names']))
     MODEL_DIR.mkdir(parents=True, exist_ok=True)
@@ -969,6 +981,11 @@ def pil_image_to_base64(image):
 def load_class_names():
     if IMAGE_CLASS_NAMES_PATH.exists():
         return json.loads(IMAGE_CLASS_NAMES_PATH.read_text(encoding='utf-8'))
+
+    if not settings.TRAINING_ENABLED:
+        raise RuntimeError(
+            'No se encontro asl_alphabet_class_names.json y el entrenamiento esta desactivado.'
+        )
 
     ensure_image_dataset()
     class_names = sorted([path.name for path in TRAIN_DIR.iterdir() if path.is_dir()])

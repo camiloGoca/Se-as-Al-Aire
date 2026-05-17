@@ -1,4 +1,4 @@
-# Senas Al Aire
+# Señas Al Aire
 
 Aplicacion web en Django para reconocer senas del alfabeto con camara usando un sistema hibrido:
 

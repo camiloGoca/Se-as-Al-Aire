@@ -64,49 +64,18 @@ Se siguen ignorando porque son pesados o regenerables:
 
 ## Despliegue en Render
 
-La configuracion del proyecto ya queda preparada para Render:
+La configuracion del proyecto esta preparada para Render:
 
-- usa variables de entorno para `SECRET_KEY`, `DEBUG` y hosts
+- se usan variables de entorno para `SECRET_KEY`, `DEBUG` y hosts
 - sirve estaticos con WhiteNoise
 - usa Postgres si existe `DATABASE_URL`
-- desactiva entrenamiento en produccion con `ALLOW_TRAINING=false`
+- se desactiva entrenamiento en produccion con `ALLOW_TRAINING=false`
 
-### Opcion recomendada: despliegue manual
 
-1. Sube tus cambios a GitHub.
-2. En Render crea una base de datos PostgreSQL.
-3. Copia la `Internal Database URL`.
-4. En Render crea un `Web Service` conectado a tu repo.
-5. Usa estos valores:
-
-```text
-Language: Python 3
-Build Command: bash build.sh
-Start Command: python -m gunicorn proyecto.asgi:application -k uvicorn.workers.UvicornWorker
-```
-
-6. Agrega estas variables de entorno:
-
-```text
-PYTHON_VERSION=3.11.11
-DEBUG=false
-ALLOW_TRAINING=false
-WEB_CONCURRENCY=4
-DATABASE_URL=<internal database url de Render>
-SECRET_KEY=<valor generado por Render>
-ALLOWED_HOSTS=<tu-servicio>.onrender.com
-```
-
-7. Despliega.
-8. Cuando termine, abre el `Shell` del servicio y crea un superusuario si lo necesitas:
-
-```bash
-python manage.py createsuperuser
-```
 
 ## Nota importante sobre Render
 
-En Render la app debe usarse solo para inferencia. El entrenamiento y la evaluacion grande quedan pensados para local, no para produccion.
+En Render la app solo se usa para inferencia. El entrenamiento y la evaluacion grande quedan pensados para local, no para produccion.
 
 ## Estructura importante
 
